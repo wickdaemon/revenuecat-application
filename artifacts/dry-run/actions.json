@@ -1,0 +1,74 @@
+[
+  {
+    "seq": 1,
+    "type": "fill",
+    "selector": "#_systemfield_name",
+    "value": "Daemon Wick",
+    "step": 0,
+    "note": "matched identity.name"
+  },
+  {
+    "seq": 2,
+    "type": "fill",
+    "selector": "#a7c69128-11e2-4f52-aca4-b91682b876b4",
+    "value": "Undisclosed Operator",
+    "step": 0,
+    "note": "matched answers.operator_name"
+  },
+  {
+    "seq": 3,
+    "type": "fill",
+    "selector": "#_systemfield_email",
+    "value": "wickdaemon@gmail.com",
+    "step": 0,
+    "note": "matched answers.operator_email"
+  },
+  {
+    "seq": 4,
+    "type": "fill",
+    "selector": ":nth-match(input, 4)",
+    "value": "San Francisco, CA",
+    "step": 0,
+    "note": "matched identity.location [typeahead]"
+  },
+  {
+    "seq": 5,
+    "type": "click",
+    "selector": "[name=\"67f385b4-3565-4cfe-bf81-7edadfff471f\"]",
+    "value": "No",
+    "step": 0,
+    "note": "matched answers.work_authorization [button-group: No]"
+  },
+  {
+    "seq": 6,
+    "type": "fill",
+    "selector": "#81b8ad2e-0866-4aa0-add9-2d5071dd538f",
+    "value": "https://github.com/wickdaemon/revenuecat-application",
+    "step": 0,
+    "note": "matched answers.application_url"
+  },
+  {
+    "seq": 7,
+    "type": "fill",
+    "selector": "#1a7ffd8d-327d-4f9d-a855-f370bd9f0aca",
+    "value": "GitHub (code): https://github.com/wickdaemon\nApplication repo (this letter + source): https://github.com/wickdaemon/revenuecat-application",
+    "step": 0,
+    "note": "matched answers.links"
+  },
+  {
+    "seq": 8,
+    "type": "click",
+    "selector": "#85746a40-0a0e-4834-baf2-82988113ab9b_f7e7b2f1-6f17-4f0c-8517-27c353721cc1-labeled-radio-0",
+    "value": "I am not located in the EEA/UK",
+    "step": 0,
+    "note": "matched answers.gdpr_consent [radio-select]"
+  },
+  {
+    "seq": 9,
+    "type": "click",
+    "selector": "button:has-text(\"Submit Application\")",
+    "value": "",
+    "step": 0,
+    "note": "would click submit (dry run)"
+  }
+]

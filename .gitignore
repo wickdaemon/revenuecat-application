@@ -6,3 +6,6 @@ credentials.json
 token.json
 *.db
 .DS_Store
+.idea/
+*.egg-info/
+revenuecat-application/
