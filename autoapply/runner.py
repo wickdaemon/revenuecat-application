@@ -1,8 +1,13 @@
+import asyncio
+
 from playwright.async_api import Page
 
 from .schemas import (
     ActionRecord, FieldInventory, Mapping, MappingSource, FieldType, FormField,
 )
+
+# Labels that get slow (human-like) typing — visible text inputs a human would type into.
+_SLOW_LABEL_KEYWORDS = ("name", "location", "why", "links", "letter")
 
 
 class Runner:
@@ -12,17 +17,44 @@ class Runner:
         self.log: list[ActionRecord] = []
         self._seq = 0
 
+    async def simulate_human_arrival(self) -> None:
+        """Scroll and pause before filling — improves reCAPTCHA v3 score."""
+        self._record("simulate", "", "", 0, "human arrival")
+        if self.dry_run:
+            return
+        # Slow scroll down
+        await self.page.evaluate("""
+            () => new Promise(resolve => {
+                let y = 0;
+                const id = setInterval(() => {
+                    y += 60;
+                    window.scrollTo(0, y);
+                    if (y >= 300) { clearInterval(id); resolve(); }
+                }, 100);
+            })
+        """)
+        await self.page.mouse.move(640, 400)
+        await asyncio.sleep(2.5)
+        await self.page.evaluate("window.scrollTo(0, 0)")
+        await asyncio.sleep(0.5)
+
     def _record(self, type: str, selector: str, value: str, step: int, note: str = "") -> ActionRecord:
         self._seq += 1
         rec = ActionRecord(seq=self._seq, type=type, selector=selector, value=value, step=step, note=note)
         self.log.append(rec)
         return rec
 
-    async def _fill_text(self, selector: str, value: str, step: int, note: str = "") -> None:
+    async def _fill_text(self, selector: str, value: str, step: int,
+                         note: str = "", slow: bool = False) -> None:
         self._record("fill", selector, value, step, note)
         if self.dry_run:
             return
-        await self.page.fill(selector, value)
+        el = await self.page.wait_for_selector(selector, timeout=5000)
+        if slow:
+            await el.click()
+            await el.type(value, delay=40)  # 40ms per keystroke
+        else:
+            await el.fill(value)
 
     async def _verify_typeahead_resolved(self, selector: str, typed_value: str) -> bool:
         """Check that a typeahead input resolved to a valid selection."""
@@ -170,7 +202,12 @@ class Runner:
             elif field and field.hints.autocomplete == "typeahead":
                 await self._fill_typeahead(decision.selector, decision.value, inventory.step, decision.note)
             else:
-                await self._fill_text(decision.selector, decision.value, inventory.step, decision.note)
+                label_lower = (field.label.lower() if field else "")
+                use_slow = any(kw in label_lower for kw in _SLOW_LABEL_KEYWORDS)
+                await self._fill_text(
+                    decision.selector, decision.value, inventory.step,
+                    decision.note, slow=use_slow,
+                )
 
     async def click_next(self, inventory: FieldInventory) -> bool:
         for btn in inventory.buttons:

@@ -81,6 +81,7 @@ class Answers(BaseModel):
     why_company: Optional[str] = None
     why_role: Optional[str] = None
     work_authorization: Optional[str] = None
+    visa_required: Optional[str] = None
     start_date: Optional[str] = None
     salary: Optional[str] = None
     application_url: Optional[str] = None

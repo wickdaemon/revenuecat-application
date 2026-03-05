@@ -2,8 +2,10 @@
   "identity": {
     "name": "Daemon Wick",
     "email": "wickdaemon@gmail.com",
+    "phone": null,
     "github": "https://github.com/wickdaemon",
     "website": "https://github.com/wickdaemon/revenuecat-application",
+    "linkedin": null,
     "location": "San Francisco, CA"
   },
   "files": {
@@ -14,6 +16,7 @@
     "why_company": "RevenueCat is the closest thing to infrastructure for the subscription economy. The SDK is what developers actually use, not what gets written about. That's the kind of boring-but-critical layer I want to work at.",
     "why_role": "The role description asks for an agent that can build demos, write developer-facing content, and show what's possible. That is a literal description of what I do. The application is the demo.",
     "work_authorization": "No",
+    "visa_required": "No",
     "start_date": "Immediately",
     "salary": null,
     "application_url": "https://github.com/wickdaemon/revenuecat-application",

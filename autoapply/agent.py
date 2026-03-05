@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,9 @@ from .runner import Runner
 
 
 MAX_STEPS = 10
+
+# Persistent Chrome profile — cookies, localStorage, reCAPTCHA v3 scores persist.
+CHROME_PROFILE_DIR = str(Path.home() / ".autoapply" / "chrome-profile")
 
 
 def validate_profile_for_submission(profile: Profile) -> list[str]:
@@ -34,6 +38,29 @@ def validate_profile_for_submission(profile: Profile) -> list[str]:
         warnings.append("gdpr_consent is not set — GDPR radio will be unfilled.")
 
     return warnings
+
+
+async def _handle_captcha(page, runner) -> None:
+    """
+    Detect and handle reCAPTCHA before submit.
+    v3 (invisible): wait for score evaluation.
+    v2 (checkbox): block until operator solves it.
+    """
+    frame = await page.query_selector(
+        "iframe[src*='recaptcha'], iframe[title*='reCAPTCHA']"
+    )
+    if not frame:
+        return  # no captcha present
+
+    v2 = await page.query_selector(".recaptcha-checkbox")
+    if v2:
+        runner._record("captcha_gate", "", "", 0, "reCAPTCHA v2 — waiting for operator")
+        print("\n⚠  reCAPTCHA detected. Solve it in the browser window.")
+        print("   Press ENTER here when done.")
+        input()
+    else:
+        runner._record("captcha_gate", "", "", 0, "reCAPTCHA v3 — waiting 3s")
+        await asyncio.sleep(3.0)
 
 
 async def run(
@@ -63,11 +90,34 @@ async def run(
     error_msg = None
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=headless)
-        page = await browser.new_page()
+        profile_dir = Path(CHROME_PROFILE_DIR)
+        profile_dir.mkdir(parents=True, exist_ok=True)
+
+        context = await pw.chromium.launch_persistent_context(
+            user_data_dir=str(profile_dir),
+            headless=False,
+            args=["--disable-blink-features=AutomationControlled"],
+            ignore_default_args=["--enable-automation"],
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/121.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1280, "height": 800},
+        )
+        page = await context.new_page()
+
+        # Remove navigator.webdriver flag
+        await page.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+        )
 
         try:
             await page.goto(url, wait_until="networkidle")
+
+            # Human behavior simulation before interacting with form
+            pre_runner = Runner(page, dry_run=dry_run)
+            await pre_runner.simulate_human_arrival()
 
             for step_num in range(MAX_STEPS):
                 await wait_for_form(page)
@@ -107,6 +157,7 @@ async def run(
 
                 if has_submit and (not has_next or step_num == MAX_STEPS - 1):
                     if not dry_run:
+                        await _handle_captcha(page, runner)
                         await runner.click_submit(inventory, wait_for_operator=True)
                     else:
                         runner._record("click", next(
@@ -144,7 +195,7 @@ async def run(
             except Exception:
                 pass
         finally:
-            await browser.close()
+            await context.close()
 
     status = "error" if error_msg else "success"
     return RunResult(

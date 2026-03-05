@@ -163,6 +163,100 @@ def init_profile() -> None:
     print(json.dumps(starter, indent=2))
 
 
+@app.command()
+def deploy(
+    url: str,
+    profile: Annotated[str, typer.Option("--profile")] = "profiles/default.json",
+    headless: Annotated[bool, typer.Option("--headless")] = False,
+    no_llm: Annotated[bool, typer.Option("--no-llm")] = False,
+    skip_gist: Annotated[bool, typer.Option("--skip-gist")] = False,
+) -> None:
+    """Publish application gist, fill form, and submit — full deployment."""
+    from daemon.publisher import publish_gist, get_existing_gist_url
+
+    with open(profile) as f:
+        prof = Profile(**json.load(f))
+
+    console = Console()
+
+    # Step 1: Publish gist (or reuse existing)
+    gist_url = None
+    if not skip_gist:
+        rprint("[cyan]Step 1: Publishing application gist...[/cyan]")
+        existing = get_existing_gist_url()
+        if existing:
+            rprint(f"[yellow]Existing gist found: {existing}[/yellow]")
+            rprint("Use this gist? [Y/n] ", end="")
+            answer = input().strip().lower()
+            if answer in ("", "y", "yes"):
+                gist_url = existing
+        if not gist_url:
+            try:
+                gist_url = publish_gist()
+                rprint(f"[green]Gist published: {gist_url}[/green]")
+            except Exception as e:
+                rprint(f"[red]Gist publish failed: {e}[/red]")
+                rprint("[yellow]Continuing without gist update...[/yellow]")
+    else:
+        rprint("[dim]Step 1: Skipped gist publishing (--skip-gist)[/dim]")
+
+    # Inject gist URL into profile if available
+    if gist_url and prof.answers.application_url != gist_url:
+        rprint(f"[cyan]Updating application_url → {gist_url}[/cyan]")
+        prof.answers.application_url = gist_url
+
+    # Step 2: Fill and submit the form
+    rprint("[cyan]Step 2: Filling and submitting form...[/cyan]")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    artifacts_dir = f"runs/{timestamp}_deploy"
+    Path(artifacts_dir).mkdir(parents=True, exist_ok=True)
+
+    result = asyncio.run(agent.run(
+        url=url,
+        profile=prof,
+        dry_run=False,
+        headless=headless,
+        artifacts_dir=artifacts_dir,
+        use_llm=not no_llm,
+    ))
+
+    # Print actions table
+    actions_path = os.path.join(artifacts_dir, "actions.json")
+    if os.path.exists(actions_path):
+        with open(actions_path) as f:
+            actions = json.load(f)
+        table = Table(title="Deploy Action Records")
+        table.add_column("Seq", style="cyan")
+        table.add_column("Type", style="green")
+        table.add_column("Selector")
+        table.add_column("Value")
+        table.add_column("Step")
+        table.add_column("Note")
+        for a in actions:
+            table.add_row(
+                str(a["seq"]), a["type"], a["selector"],
+                a["value"][:60], str(a["step"]), a["note"],
+            )
+        console.print(table)
+
+    # Save result
+    result_path = os.path.join(artifacts_dir, "result.json")
+    with open(result_path, "w") as f:
+        json.dump(result.model_dump(), f, indent=2)
+
+    if result.error:
+        rprint(f"[red]DEPLOY ERROR: {result.error}[/red]")
+        raise typer.Exit(code=1)
+
+    if result.submitted:
+        rprint("[green]DEPLOYED — form submitted successfully.[/green]")
+        if gist_url:
+            rprint(f"[green]Application gist: {gist_url}[/green]")
+        rprint(f"[dim]Artifacts: {artifacts_dir}[/dim]")
+    else:
+        rprint("[yellow]Form was not submitted. Check artifacts for details.[/yellow]")
+
+
 def _infer_company_from_message(message) -> str:
     """Extract company slug from sender domain for state updates."""
     try:
