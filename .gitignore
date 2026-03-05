@@ -8,4 +8,6 @@ token.json
 .DS_Store
 .idea/
 *.egg-info/
+.venv/
+.pytest_cache/
 revenuecat-application/
