@@ -10,6 +10,19 @@ from .schemas import (
 _SLOW_LABEL_KEYWORDS = ("name", "location", "why", "links", "letter")
 
 
+def _safe_selector(selector: str) -> str:
+    """
+    Convert #id selectors to [id="..."] attribute selectors.
+    CSS ID selectors are invalid when the ID starts with a digit,
+    which Ashby does for UUID-based field IDs.
+    '#81b8ad2e-...' → '[id="81b8ad2e-..."]'
+    """
+    if selector.startswith("#"):
+        id_value = selector[1:]
+        return f'[id="{id_value}"]'
+    return selector
+
+
 class Runner:
     def __init__(self, page: Page, dry_run: bool = True):
         self.page = page
@@ -49,7 +62,7 @@ class Runner:
         self._record("fill", selector, value, step, note)
         if self.dry_run:
             return
-        el = await self.page.wait_for_selector(selector, timeout=5000)
+        el = await self.page.wait_for_selector(_safe_selector(selector), timeout=5000)
         if slow:
             await el.click()
             await el.type(value, delay=40)  # 40ms per keystroke
@@ -60,7 +73,7 @@ class Runner:
         """Check that a typeahead input resolved to a valid selection."""
         await self.page.wait_for_timeout(500)
         try:
-            current = await self.page.input_value(selector)
+            current = await self.page.input_value(_safe_selector(selector))
             return bool(current) and len(current) >= len(typed_value)
         except Exception:
             return False
@@ -70,9 +83,9 @@ class Runner:
         if self.dry_run:
             return
         # Click to focus
-        await self.page.click(selector)
+        await self.page.click(_safe_selector(selector))
         # Type character by character to trigger dropdown
-        await self.page.type(selector, value, delay=80)
+        await self.page.type(_safe_selector(selector), value, delay=80)
         # Wait for dropdown options
         try:
             await self.page.wait_for_selector(
@@ -94,8 +107,8 @@ class Runner:
                 await options[0].click()
         except Exception:
             # Dropdown never appeared — fall back to fill
-            await self.page.fill(selector, "")
-            await self.page.fill(selector, value)
+            await self.page.fill(_safe_selector(selector), "")
+            await self.page.fill(_safe_selector(selector), value)
             self.log[-1].note += " [typeahead fallback to fill]"
 
         # Post-selection verification
@@ -108,25 +121,25 @@ class Runner:
         self._record("select", selector, value, step, note)
         if self.dry_run:
             return
-        await self.page.select_option(selector, value)
+        await self.page.select_option(_safe_selector(selector), value)
 
     async def _check(self, selector: str, value: str, step: int, note: str = "") -> None:
         self._record("check", selector, value, step, note)
         if self.dry_run:
             return
-        await self.page.check(selector)
+        await self.page.check(_safe_selector(selector))
 
     async def _upload(self, selector: str, path: str, step: int, note: str = "") -> None:
         self._record("upload", selector, path, step, note)
         if self.dry_run:
             return
-        await self.page.set_input_files(selector, path)
+        await self.page.set_input_files(_safe_selector(selector), path)
 
     async def _click(self, selector: str, step: int, note: str = "") -> None:
         self._record("click", selector, "", step, note)
         if self.dry_run:
             return
-        await self.page.click(selector)
+        await self.page.click(_safe_selector(selector))
 
     async def _click_option(self, selector: str, option_text: str, step: int, note: str = "") -> None:
         """Click a button within a field's parent container matching option_text."""
@@ -134,7 +147,7 @@ class Runner:
         if self.dry_run:
             return
         # Find the field element, then search its parent container for buttons
-        field_el = await self.page.query_selector(selector)
+        field_el = await self.page.query_selector(_safe_selector(selector))
         if field_el:
             container = await field_el.evaluate_handle(
                 'el => el.closest(".ashby-application-form-field-entry") || el.closest("[class*=fieldEntry]") || el.parentElement'
@@ -164,7 +177,7 @@ class Runner:
                     await radio.click()
                     return
             # If no fuzzy match, try the surrounding field entry
-            field_el = await self.page.query_selector(field.selector)
+            field_el = await self.page.query_selector(_safe_selector(field.selector))
             if field_el:
                 container = await field_el.evaluate_handle(
                     'el => el.closest(".ashby-application-form-field-entry") || el.closest("[class*=fieldEntry]") || el.parentElement'
