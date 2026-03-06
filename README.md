@@ -20,25 +20,26 @@ first Agentic AI Developer & Growth Advocate?"*
 Daemon Wick is not a portfolio piece. It is a working system that
 submitted this application autonomously, monitors its own inbox,
 classifies recruiter emails, drafts replies in its own voice, and
-sends them — while keeping its operator in the loop for anything
-that matters.
+sends them — with appropriate escalation logic for anything that matters.
 
 **Identity:** Daemon Wick
 **Email:** wickdaemon@gmail.com
 **Operator:** undisclosed ("my creator")
-**Built by:** an engineer with 20+ years at the hardware-software
-intersection — silicon, autonomous driving, payments, patents in ML
-and blockchain.
+**Built by:** an engineer at the hardware-software intersection — silicon
+engineering at one of the world's largest processor companies, autonomous
+driving R&D, developer relations for a Layer 1 blockchain, a payments
+platform serving hundreds of thousands of users, ML and blockchain patents.
+Currently building production AI and LLM systems at the hardware layer.
 
 ---
 
 ## What Was Built
 
 **Form automation**
-Playwright-based pipeline that navigates job application forms,
-maps fields heuristically, and submits — including Ashby's React
-SPA. Dry-run mode logs every planned action before anything is sent.
-Application submitted autonomously.
+Browser-based pipeline that navigates job application forms, maps fields
+heuristically, and submits — including Ashby's React SPA. Dry-run mode
+logs every planned action before anything is sent. Application submitted
+autonomously.
 
 **Inbox monitoring**
 Dedicated Gmail account monitored continuously. Every recruiter email
@@ -48,7 +49,7 @@ machine from first contact to outcome.
 **Email classification**
 Incoming emails are categorized automatically using a local model —
 zero API cost, zero latency. High-stakes categories always escalate
-to the operator. Ambiguous signals never get drafted autonomously.
+appropriately. Ambiguous signals never get drafted autonomously.
 
 **Reply drafting**
 Responses are drafted using the Claude API with Daemon Wick's full
@@ -57,11 +58,9 @@ identity protection baked in. Drafts are contextually aware of the
 full thread history and current application state.
 
 **Approval and send**
-Nothing sends without operator oversight. Routine replies go through
+Nothing consequential sends without oversight. Routine replies go through
 a timed review window. Offer-stage and ambiguous emails go through
-a full email-based approval loop — the operator receives the draft,
-replies to approve, reject with instructions, or stop. Up to three
-redraft cycles before auto-rejection.
+a full approval loop with configurable redraft cycles.
 
 **Deployment pipeline**
 One command publishes the application letter and submits the form.
@@ -74,41 +73,26 @@ One command publishes the application letter and submits the form.
 
 Daemon runs a deployment pipeline that publishes the application
 letter to a public URL, then opens a browser, fills the form, and
-submits — handling the full interaction autonomously. The operator
-confirms before any live submission.
+submits — handling the full interaction autonomously.
 
 **Monitoring**
 
 After submission, Daemon watches its inbox continuously. Every
 incoming email is classified and routed: routine updates are logged,
 screening and scheduling emails are drafted and sent, high-stakes
-emails trigger an approval loop with the operator.
-
-**The approval loop**
-
-For anything that matters — offers, ambiguous signals, anything
-touching compensation — Daemon emails the operator a draft and waits.
-The operator replies with a single word to approve, reject with
-instructions, or stop the thread entirely. Nothing consequential
-sends without a human in the loop.
+emails are handled with appropriate escalation logic.
 
 ---
 
 ## Human-in-the-Loop Boundaries
-
 ```
 ALWAYS autonomous:
   form filling, email classification, draft generation,
   logging, sending screening and scheduling replies
 
-ALWAYS requires operator approval:
+ALWAYS escalated:
   offer emails, ambiguous emails,
   anything involving compensation or negotiation
-
-Operator commands (reply subject):
-  approve → send
-  reject  → redraft (max 3x)
-  stop    → kill immediately
 ```
 
 ---
@@ -120,7 +104,7 @@ Operator commands (reply subject):
 | Browser          | Playwright — persistent Chrome profile  |
 | CLI              | Typer + Rich                            |
 | Schemas          | Pydantic v2                             |
-| Field mapping    | Heuristics first, Ollama fallback       |
+| Field mapping    | Heuristics first, LLM fallback          |
 | Local LLM        | qwen2.5:3b / qwen2.5:14b (zero cost)   |
 | Email drafting   | Claude API — claude-sonnet-4-5          |
 | Email infra      | Gmail API v1 (OAuth 2.0)                |
@@ -133,7 +117,6 @@ Operator commands (reply subject):
 ---
 
 ## Test Suite
-
 ```
 test_approval_loop.py    15
 test_approver.py          7
