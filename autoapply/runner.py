@@ -7,7 +7,10 @@ from .schemas import (
 )
 
 # Labels that get slow (human-like) typing — visible text inputs a human would type into.
-_SLOW_LABEL_KEYWORDS = ("name", "location", "why", "links", "letter")
+_SLOW_LABEL_KEYWORDS = ("name", "why", "links", "letter")
+
+# Labels that trigger typeahead fill (dropdown autocomplete).
+_TYPEAHEAD_LABEL_KEYWORDS = ("location", "city", "work from", "where")
 
 
 def _safe_selector(selector: str) -> str:
@@ -78,44 +81,58 @@ class Runner:
         except Exception:
             return False
 
-    async def _fill_typeahead(self, selector: str, value: str, step: int, note: str = "") -> None:
-        self._record("fill", selector, value, step, note + " [typeahead]" if note else "typeahead")
-        if self.dry_run:
-            return
-        # Click to focus
-        await self.page.click(_safe_selector(selector))
-        # Type character by character to trigger dropdown
-        await self.page.type(_safe_selector(selector), value, delay=80)
-        # Wait for dropdown options
-        try:
-            await self.page.wait_for_selector(
-                '[role="listbox"], [role="option"], [class*="typeahead"], [class*="dropdown"] li, [class*="option"]',
-                timeout=10000,
-            )
-            # Try to click the first option that contains our value
-            options = await self.page.query_selector_all(
-                '[role="option"], [class*="typeahead"] li, [class*="dropdown"] li, [class*="option"]'
-            )
-            clicked = False
-            for opt in options:
-                text = (await opt.inner_text()).strip()
-                if value.lower() in text.lower():
-                    await opt.click()
-                    clicked = True
-                    break
-            if not clicked and options:
-                await options[0].click()
-        except Exception:
-            # Dropdown never appeared — fall back to fill
-            await self.page.fill(_safe_selector(selector), "")
-            await self.page.fill(_safe_selector(selector), value)
-            self.log[-1].note += " [typeahead fallback to fill]"
+    async def _fill_typeahead(
+        self,
+        selector: str,
+        value: str,
+        step: int,
+        note: str = "",
+        dropdown_selector: str = "[role='option'], [role='listbox'] li, .ashby-application-portal-typeahead-option",
+        wait_ms: int = 1500,
+    ) -> bool:
+        """
+        Fill a typeahead/autocomplete field:
+        1. Click to focus
+        2. Type value character by character
+        3. Wait for dropdown to appear
+        4. Click the first suggestion
 
-        # Post-selection verification
-        if await self._verify_typeahead_resolved(selector, value):
-            self.log[-1].note += " [typeahead resolved]"
-        else:
-            self.log[-1].note += " [WARN: typeahead unresolved — verify in browser]"
+        Returns True if a suggestion was selected, False if no dropdown appeared.
+        """
+        self._record("fill_typeahead", selector, value, step, note)
+        if self.dry_run:
+            return True
+
+        try:
+            el = await self.page.wait_for_selector(
+                _safe_selector(selector), timeout=5000
+            )
+            await el.click()
+            await el.type(value, delay=60)
+
+            # Wait for dropdown to appear
+            await asyncio.sleep(wait_ms / 1000)
+
+            # Try to find and click the first suggestion
+            suggestion = await self.page.query_selector(dropdown_selector)
+            if suggestion:
+                await suggestion.click()
+                self._record(
+                    "typeahead_selected", selector, value, step,
+                    note="dropdown suggestion clicked",
+                )
+                await asyncio.sleep(0.3)
+                return True
+            else:
+                self._record(
+                    "typeahead_warn", selector, value, step,
+                    note="no dropdown appeared — value may be unresolved",
+                )
+                return False
+
+        except Exception as e:
+            self._record("error", selector, str(e), step, note="typeahead failed")
+            return False
 
     async def _select(self, selector: str, value: str, step: int, note: str = "") -> None:
         self._record("select", selector, value, step, note)
@@ -216,11 +233,18 @@ class Runner:
                 await self._fill_typeahead(decision.selector, decision.value, inventory.step, decision.note)
             else:
                 label_lower = (field.label.lower() if field else "")
-                use_slow = any(kw in label_lower for kw in _SLOW_LABEL_KEYWORDS)
-                await self._fill_text(
-                    decision.selector, decision.value, inventory.step,
-                    decision.note, slow=use_slow,
-                )
+                is_typeahead = any(kw in label_lower for kw in _TYPEAHEAD_LABEL_KEYWORDS)
+                if is_typeahead:
+                    await self._fill_typeahead(
+                        decision.selector, decision.value, inventory.step,
+                        decision.note,
+                    )
+                else:
+                    use_slow = any(kw in label_lower for kw in _SLOW_LABEL_KEYWORDS)
+                    await self._fill_text(
+                        decision.selector, decision.value, inventory.step,
+                        decision.note, slow=use_slow,
+                    )
 
     async def click_next(self, inventory: FieldInventory) -> bool:
         for btn in inventory.buttons:
