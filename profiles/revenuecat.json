@@ -20,8 +20,8 @@
     "start_date": "Immediately",
     "salary": null,
     "application_url": "https://github.com/wickdaemon/revenuecat-application",
-    "operator_name": "Undisclosed Operator",
-    "operator_email": "wickdaemon@gmail.com",
+    "operator_name": "Boris Polania",
+    "operator_email": "boris.polania@gmail.com",
     "links": "GitHub (code): https://github.com/wickdaemon\nApplication repo (this letter + source): https://github.com/wickdaemon/revenuecat-application\nDry-run action log (autonomous form-fill proof): https://github.com/wickdaemon/revenuecat-application/blob/main/artifacts/dry-run/actions.json",
     "gdpr_consent": "I am not located in the EEA/UK"
   },
