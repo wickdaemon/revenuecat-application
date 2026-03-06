@@ -159,6 +159,26 @@ async def run(
                     if not dry_run:
                         await _handle_captcha(page, runner)
                         await runner.click_submit(inventory, wait_for_operator=True)
+
+                        # Wait for Ashby to process and render confirmation
+                        try:
+                            await page.wait_for_load_state("networkidle", timeout=15000)
+                        except Exception:
+                            pass  # networkidle timeout is non-fatal
+
+                        # Capture post-submit state
+                        post_screenshot = os.path.join(artifacts_dir, "post-submit.png")
+                        await page.screenshot(path=post_screenshot, full_page=True)
+
+                        post_submit_url = page.url
+                        post_submit_title = await page.title()
+                        runner._record(
+                            "post_submit", "", "", step_num,
+                            f"url={post_submit_url} title={post_submit_title}",
+                        )
+
+                        # Give operator time to see the confirmation page
+                        await asyncio.sleep(5)
                     else:
                         runner._record("click", next(
                             (b.selector for b in inventory.buttons if b.role == "submit"), ""
