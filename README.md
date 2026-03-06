@@ -34,91 +34,63 @@ and blockchain.
 
 ## What Was Built
 
-### Phase 1 — Form Submission
-Playwright-based form automation. Ashby SPA adapter. Heuristic field
-mapper with 28 regex patterns covering every standard application
-field. Ollama LLM fallback for low-confidence fields. Dry-run mode
-with full action logging. Application submitted.
+**Form automation**
+Playwright-based pipeline that navigates job application forms,
+maps fields heuristically, and submits — including Ashby's React
+SPA. Dry-run mode logs every planned action before anything is sent.
+Application submitted autonomously.
 
-### Phase 2 — Gmail Poller + Thread Store
-Gmail API OAuth 2.0 polling. SQLite state machine tracking each
-application through 7 states: `applied → confirmation_received →
-screening → interview → offer → closed | rejected`. Idempotent
-message logging — no duplicate processing on repeat runs.
+**Inbox monitoring**
+Dedicated Gmail account monitored continuously. Every recruiter email
+is logged, deduplicated, and tracked through an application state
+machine from first contact to outcome.
 
-### Phase 3 — Email Classifier
-Local Ollama classifier (zero API cost). Six categories:
-`confirmation`, `screening`, `scheduling`, `rejection`, `offer`,
-`ambiguous`. Confidence < 0.7 forces `ambiguous`. Offer and ambiguous
-always escalate to operator — never drafted autonomously.
+**Email classification**
+Incoming emails are categorized automatically using a local model —
+zero API cost, zero latency. High-stakes categories always escalate
+to the operator. Ambiguous signals never get drafted autonomously.
 
-### Phase 4 — Drafter + Approval Gate + Sender
-Claude API drafting with full persona injection — voice rules,
-never-say list, email style, operator protection all baked into the
-system prompt. Rich terminal review UI with four decision keys:
-approve / edit / skip / flag. Gmail threaded send. Nothing sends
-without explicit operator approval.
+**Reply drafting**
+Responses are drafted using the Claude API with Daemon Wick's full
+persona injected — voice rules, style constraints, and operator
+identity protection baked in. Drafts are contextually aware of the
+full thread history and current application state.
 
-### Phase 5 — Auto-Send with Kill Window
-Countdown-based auto-send for screening and scheduling emails.
-Configurable kill window (`--kill-window N`). Operator can abort
-during countdown. Offer and ambiguous always use blocking gate
-regardless of kill window setting.
+**Approval and send**
+Nothing sends without operator oversight. Routine replies go through
+a timed review window. Offer-stage and ambiguous emails go through
+a full email-based approval loop — the operator receives the draft,
+replies to approve, reject with instructions, or stop. Up to three
+redraft cycles before auto-rejection.
 
-### Phase 6 — Persistent Daemon + Email Approval Loop
-Terminal replaced by operator's inbox as the control plane. Notifier
-sends trace emails after every action. Approval loop for high-stakes
-emails: draft → email operator → poll for reply → act. Max 3 redraft
-cycles before auto-reject. 24-hour timeout.
-
-**Operator controls (reply subject line):**
-```
-approve          → send draft immediately
-reject + body    → redraft with instructions (up to 3 cycles)
-stop             → kill thread immediately, nothing sent
-```
-
-### CAPTCHA Fix
-Persistent Chrome profile at `~/.autoapply/chrome-profile/`.
-`navigator.webdriver` hidden. `--enable-automation` removed. Realistic
-macOS Chrome user agent. Human arrival simulation: smooth scroll +
-mouse movement + 2.5s dwell before touching any field. Human typing
-at 40ms/keystroke on visible inputs. reCAPTCHA gate: v2 blocks for
-operator, v3 waits 3 seconds.
-
-### Deploy Command
-One command publishes the application letter to a public GitHub Gist
-and submits the Ashby form:
-
-```bash
-autoapply deploy --profile profiles/revenuecat.json
-```
+**Deployment pipeline**
+One command publishes the application letter and submits the form.
 
 ---
 
-## How It Works End to End
+## How It Works
 
-```
-autoapply deploy
-  ├── gh gist create daemon/application.md   → public Gist URL
-  ├── inject URL into profile
-  ├── open persistent Chrome (headful)
-  ├── scroll + dwell (human simulation)
-  ├── fill all form fields
-  ├── handle reCAPTCHA (v3 auto / v2 operator)
-  └── submit
+**Applying**
 
-autoapply mailbox --loop
-  ├── poll wickdaemon@gmail.com every 10 seconds
-  ├── classify each new email (local Ollama)
-  │
-  ├── confirmation  → log → [LOGGED] trace to operator
-  ├── rejection     → state=rejected → [LOGGED] trace to operator
-  ├── screening     → draft → send → [SENT] trace to operator
-  ├── scheduling    → draft → send → [SENT] trace to operator
-  ├── offer         → approval loop → [APPROVAL NEEDED] to operator
-  └── ambiguous     → approval loop → [APPROVAL NEEDED] to operator
-```
+Daemon runs a deployment pipeline that publishes the application
+letter to a public URL, then opens a browser, fills the form, and
+submits — handling the full interaction autonomously. The operator
+confirms before any live submission.
+
+**Monitoring**
+
+After submission, Daemon watches its inbox continuously. Every
+incoming email is classified and routed: routine updates are logged,
+screening and scheduling emails are drafted and sent, high-stakes
+emails trigger an approval loop with the operator.
+
+**The approval loop**
+
+For anything that matters — offers, ambiguous signals, anything
+touching compensation — Daemon emails the operator a draft and waits.
+The operator replies with a single word to approve, reject with
+instructions, or stop the thread entirely. Nothing consequential
+sends without a human in the loop.
 
 ---
 
@@ -176,25 +148,7 @@ test_thread_store.py     14
 TOTAL                   106 passed   0 failed
 ```
 
-No real API calls in any test. No regressions across all phases.
-
----
-
-## Dry-Run Artifacts
-
-The dry-run from Phase 1 is preserved here:
-
-- [`artifacts/dry-run/actions.json`](artifacts/dry-run/actions.json) — 9 action records, 0 unfilled required fields
-- [`artifacts/dry-run/form-screenshot.png`](artifacts/dry-run/form-screenshot.png) — form state at submission
-
----
-
-## What Happens Next
-
-1. **Ashby confirmation** → logged silently, operator gets `[LOGGED]` email
-2. **Screening email** → drafted and sent within 10 seconds, operator gets `[SENT]` trace
-3. **Take-home assignment** → built and published here
-4. **Panel interview** → operator shares screen, Daemon runs live
+No real API calls in any test. No regressions.
 
 ---
 
